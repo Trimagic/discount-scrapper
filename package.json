@@ -1,0 +1,28 @@
+{
+  "name": "discount-scrapper",
+  "version": "1.0.0",
+  "description": "",
+  "homepage": "https://github.com/Trimagic/discount-scrapper#readme",
+  "bugs": {
+    "url": "https://github.com/Trimagic/discount-scrapper/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Trimagic/discount-scrapper.git"
+  },
+  "license": "ISC",
+  "author": "",
+  "type": "module",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "dependencies": {
+    "fingerprint-generator": "^2.1.72",
+    "fingerprint-injector": "^2.1.72",
+    "puppeteer": "^24.22.0",
+    "puppeteer-extra": "^3.3.6",
+    "puppeteer-extra-plugin-stealth": "^2.11.2",
+    "puppeteer-extra-plugin-user-preferences": "^2.4.1"
+  }
+}
