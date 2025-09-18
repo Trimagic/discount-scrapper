@@ -15,7 +15,8 @@
   "type": "module",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "dev": "cross-env CRAWLEE_DISABLE_USAGE_STATS=1 APIFY_DISABLE_USAGE_STATS=1           APIFY_MEMORY_SNAPSHOT_INTERVAL_MILLIS=0           CRAWLEE_MEMORY_SNAPSHOT_INTERVAL_MILLIS=0           node crawlee.js",
+    "start": "node crawlee.js"
   },
   "dependencies": {
     "fingerprint-generator": "^2.1.72",
