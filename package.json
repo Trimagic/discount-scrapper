@@ -19,11 +19,13 @@
     "start": "node crawlee.js"
   },
   "dependencies": {
+    "crawlee": "^3.15.0",
     "fingerprint-generator": "^2.1.72",
     "fingerprint-injector": "^2.1.72",
     "puppeteer": "^24.22.0",
     "puppeteer-extra": "^3.3.6",
     "puppeteer-extra-plugin-stealth": "^2.11.2",
-    "puppeteer-extra-plugin-user-preferences": "^2.4.1"
+    "puppeteer-extra-plugin-user-preferences": "^2.4.1",
+    "tldts": "^7.0.14"
   }
 }

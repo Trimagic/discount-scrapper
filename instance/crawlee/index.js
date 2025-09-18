@@ -131,12 +131,14 @@ export class HoldInstance {
     let crawlerOptions = {
       keepAlive: true,
 
-      // без ретраев и автопараллельности
-      maxConcurrency: 1,
-      maxRequestsPerCrawl: 1,
+      // Последовательно, но НЕ ограничиваем общее число запросов
+      //maxConcurrency: 1,
+      // maxRequestsPerCrawl: 1, // ❌ УБРАТЬ, иначе обработается только стартовый URL
+      // maxRequestsPerCrawl: undefined, // или просто не указывать
       maxRequestRetries: 0,
 
-      // огромные таймауты (держим вкладку «вечно»)
+      // «Вечные» таймауты — только для стартовой страницы.
+      // Для offer-ссылок зададим таймауты вручную в requestHandler.
       requestHandlerTimeoutSecs: BIG_TIMEOUT_SECS,
       navigationTimeoutSecs: BIG_TIMEOUT_SECS,
 
