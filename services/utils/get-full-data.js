@@ -6,6 +6,7 @@ import { maxelektro } from "../maxelektro/index.js";
 import { neonet } from "../neonet/index.js";
 
 import { getDomainWithoutTLD } from "./urls.js";
+import { allegro } from "../allegro/index.js";
 
 const map = {
   "euro.com": eurocom,
@@ -14,44 +15,78 @@ const map = {
   mediamarkt,
   maxelektro,
   neonet,
+  allegro,
 };
 
 /**
- * Получает цену с финальной страницы магазина.
+ * Получает данные о товаре с финальной страницы магазина.
+ * price — обязательное поле. image, title, delivery — опциональны.
  *
  * @param {import('puppeteer').Page} page  Страница Puppeteer, на которой открыт товар
  * @param {string} url                      Финальный URL товара
- * @returns {Promise<number|string|null>}   Найденная цена или null, если парсер отсутствует/ошибка
+ * @returns {Promise<{data: null | {price:number,image?:string|null,title?:string|null,delivery?:string|null}, error: null | {url:string,error:string}}>}
  */
 export const getFullDataMarket = async (page, url) => {
   const domain = getDomainWithoutTLD(url);
   const market = map[domain];
 
-  // Логируем то, что нашли
-  if (market) {
-    console.log(`[parser] найден парсер для домена "${domain}" → ${url}`);
-  } else {
+  // Если парсер не найден
+  if (!market) {
     console.log(`[parser] парсер для домена "${domain}" НЕ найден → ${url}`);
-    return null;
+    return {
+      data: null,
+      error: { url, error: "Парсера нет" },
+    };
   }
+
+  console.log(`[parser] найден парсер для домена "${domain}" → ${url}`);
 
   try {
     const { price } = await market.extractPrice(page);
-    const { image } = await market.extractImage(page);
-    const { title } = await market.extractTitle(page);
-    const { delivery } = await market.extractDelivery(page);
+
+    // Цена обязательна
+    if (price == null) {
+      console.log(`[parser] Не удалось извлечь цену (${domain})`);
+      return {
+        data: null,
+        error: { url, error: "Не удалось извлечь цену" },
+      };
+    }
+
+    // Остальные поля опциональны
+    let image = null;
+    let title = null;
+    let delivery = null;
+
+    try {
+      ({ image } = await market.extractImage(page));
+    } catch {}
+    try {
+      ({ title } = await market.extractTitle(page));
+    } catch {}
+    try {
+      ({ delivery } = await market.extractDelivery(page));
+    } catch {}
+
     console.log(`[parser] PRICE (${domain}):`, {
       price,
       image,
       title,
       delivery,
     });
-    return { price, image, title, delivery };
+
+    return {
+      data: { price, image, title, delivery },
+      error: null,
+    };
   } catch (err) {
     console.log(
-      `[parser] Ошибка при извлечении цены с ${domain}:`,
+      `[parser] Ошибка при извлечении данных с ${domain}:`,
       err.message
     );
-    return null;
+    return {
+      data: null,
+      error: { url, error: "Неизвестная ошибка" },
+    };
   }
 };
