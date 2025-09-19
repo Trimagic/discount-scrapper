@@ -3,9 +3,15 @@
 
 import { HoldInstance } from "./instance/crawlee/index.js";
 import { ceneo } from "./services/ceneo/index.js";
+import { eurocom } from "./services/euro.com/index.js";
+import { komputronik } from "./services/komputronik/index.js";
+import { maxelektro } from "./services/maxelektro/index.js";
+import { mediaexpert } from "./services/mediaexpert/index.js";
+import { mediamarkt } from "./services/mediamarkt/index.js";
+import { neonet } from "./services/neonet/index.js";
 
-const URL = "https://www.ceneo.pl/183113257;02514#tab=click";
-
+//const URL = "https://www.ceneo.pl/183113257;02514#tab=click";
+const URL = "https://www.ceneo.pl/181610898;02514";
 // ──────────────────────────────────────────────────────────────
 // Функция для извлечения цены из страницы
 // ──────────────────────────────────────────────────────────────
@@ -24,7 +30,8 @@ const hold = await HoldInstance.create({
 
 await hold.open(URL, async ({ page }) => {
   const data = await ceneo.getListUrls(page);
-  console.log(data);
+
+  console.log({ data });
 });
 
 // Ctrl+C → корректно закрываем

@@ -18,6 +18,7 @@ import { stripQueryParams } from "../utils/urls.js";
  */
 export async function getListUrls(page, onResolved) {
   const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+  await sleep(1000);
 
   // 1) Собираем абсолютные href и убираем дубли
   const rawLinks = await page.evaluate(() => {

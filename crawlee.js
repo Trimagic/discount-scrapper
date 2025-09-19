@@ -3,7 +3,7 @@ import { HoldInstance } from "./instance/crawlee/index.js";
 const hold = await HoldInstance.create({
   profileName: "alex", // → ./session/alex
   // userDataDir: "./session/alex-custom", // можешь задать явно
-  headless: "new",
+  headless: false,
   width: 1920,
   height: 900,
   locale: "pl-PL,pl;q=0.9,en;q=0.8",

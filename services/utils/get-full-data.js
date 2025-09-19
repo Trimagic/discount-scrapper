@@ -37,8 +37,16 @@ export const getFullDataMarket = async (page, url) => {
 
   try {
     const { price } = await market.extractPrice(page);
-    console.log(`[parser] PRICE (${domain}):`, price);
-    return price;
+    const { image } = await market.extractImage(page);
+    const { title } = await market.extractTitle(page);
+    const { delivery } = await market.extractDelivery(page);
+    console.log(`[parser] PRICE (${domain}):`, {
+      price,
+      image,
+      title,
+      delivery,
+    });
+    return { price, image, title, delivery };
   } catch (err) {
     console.log(
       `[parser] Ошибка при извлечении цены с ${domain}:`,
