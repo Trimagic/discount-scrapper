@@ -14,10 +14,11 @@ import { mediamarkt } from "./services/mediamarkt/index.js";
 import { neonet } from "./services/neonet/index.js";
 import { oleole } from "./services/oleole/index.js";
 import { getFullDataMarket } from "./services/utils/get-full-data.js";
+import { senetic } from "./services/senetic/index.js";
 //const URL = "https://www.google.com/";
 //const URL = "https://www.ceneo.pl/181663513";
 const URL =
-  "https://www.oleole.pl/odkurzacze-automatyczne/roborock-saros-10r_1.bhtml";
+  "https://www.senetic.pl/product/S10R52-00?ceneo_cid=56a9c567-7af8-13b3-fc0a-e5f2f0948e70";
 // ──────────────────────────────────────────────────────────────
 // Функция для извлечения цены из страницы
 // ──────────────────────────────────────────────────────────────
@@ -53,10 +54,10 @@ const hold = await HoldInstance.create({
 
 await hold.open(URL, async ({ page }) => {
   //const data = await getFullDataMarket(page, URL);
-  const { price } = await oleole.extractPrice(page);
-  const { title } = await oleole.extractTitle(page);
-  const { delivery } = await oleole.extractDelivery(page);
-  const { image } = await oleole.extractImage(page);
+  const { price } = await senetic.extractPrice(page);
+  const { title } = await senetic.extractTitle(page);
+  const { delivery } = await senetic.extractDelivery(page);
+  const { image } = await senetic.extractImage(page);
   // const data = await ceneo.getListUrls(page);
   console.log({ title, price, delivery, image });
 });
