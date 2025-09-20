@@ -1,33 +1,56 @@
 /* eslint-disable no-console */
-import { PuppeteerCrawler, Configuration } from "crawlee";
+import { PuppeteerCrawler, Configuration, RequestQueue } from "crawlee";
 import fs from "node:fs/promises";
 import path from "node:path";
+import crypto from "node:crypto";
 
 Configuration.set("systemInfoV2", true);
 Configuration.set("disableSystemInfo", true);
 
-export class HoldInstance {
+/**
+ * Долго-живущий инстанс:
+ * - единый PuppeteerCrawler
+ * - единый RequestQueue
+ * - enqueue(url) -> Promise<result>, который резолвится из requestHandler
+ */
+export class HoldInstanceQueue {
   constructor(opts = {}) {
+    // вьюпорт/режим
     this.width = opts.width ?? 1920;
     this.height = opts.height ?? 900;
     this.headless = opts.headless ?? false;
 
-    // поведение:
-    this.holdAfterRun = opts.holdAfterRun ?? true; // ← держать окно ПОСЛЕ всего прогона
-    this.waitOnError = opts.waitOnError ?? true; // держать окно при ошибке
+    // поведение
+    this.waitOnError = opts.waitOnError ?? true;
 
-    // навигация/тайминги:
+    // тайминги
     this.navigationTimeoutSecs = opts.navigationTimeoutSecs ?? 60;
 
-    // сессии:
+    // сессии
     this.sessionBaseDir = opts.sessionBaseDir ?? "./session";
-    this.profileName = opts.profileName ?? undefined;
+    this.profileName = opts.profileName ?? "default";
     this.sessionDir = opts.sessionDir ?? undefined;
+
+    // общий обработчик (например, твой getFullDataMarket)
+    this.extractor =
+      typeof opts.extractor === "function" ? opts.extractor : null;
+
+    // ожидания результатов
+    /** @type {Map<string, {resolve:Function, reject:Function}>} */
+    this._pending = new Map();
+
+    // состояния
+    this._queue = null;
+    this._crawler = null;
+    this._isRunning = false;
+    this._runPromise = null;
   }
 
   static async create(opts = {}) {
-    const inst = new HoldInstance(opts);
+    const inst = new HoldInstanceQueue(opts);
     await inst.#ensureSessionDir();
+    await inst.#ensureQueue();
+    await inst.#ensureCrawler();
     return inst;
   }
 
@@ -42,45 +65,25 @@ export class HoldInstance {
     console.log(`📁 userDataDir: ${this.sessionDir}`);
   }
 
-  /**
-   * Один URL.
-   * @param {string} url
-   * @param {(ctx: { page: import('puppeteer').Page, request: any, log: any, stableEval: <T>(fn: (...args:any[]) => T, ...args:any[])=>Promise<T> }) => Promise<void>} handler
-   * @param {{ holdAfterRun?: boolean }} [opts]
-   */
-  async open(url, handler, opts = {}) {
-    return this.#runInternal([url], handler, {
-      maxRequestsPerCrawl: 1,
-      holdAfterRun: opts.holdAfterRun ?? this.holdAfterRun,
-    });
+  async #ensureQueue() {
+    if (!this._queue) {
+      this._queue = await RequestQueue.open(`rq-${this.profileName}`);
+      console.log(`🗂️ RequestQueue ready: rq-${this.profileName}`);
+    }
   }
 
-  /**
-   * Несколько URL-ов за один прогон.
-   * @param {string[]} urls
-   * @param {(ctx: { page: import('puppeteer').Page, request: any, log: any, stableEval: <T>(fn: (...args:any[]) => T, ...args:any[])=>Promise<T> }) => Promise<void>} handler
-   * @param {{ holdAfterRun?: boolean, maxRequestsPerCrawl?: number }} [opts]
-   */
-  async openMany(urls, handler, opts = {}) {
-    const m = Number.isFinite(opts.maxRequestsPerCrawl)
-      ? opts.maxRequestsPerCrawl
-      : urls.length || 1;
-    return this.#runInternal(urls, handler, {
-      maxRequestsPerCrawl: m,
-      holdAfterRun: opts.holdAfterRun ?? this.holdAfterRun,
-    });
-  }
+  async #ensureCrawler() {
+    if (this._crawler) return;
 
-  async #runInternal(urls, handler, runOpts) {
     const self = this;
 
-    const crawler = new PuppeteerCrawler({
+    this._crawler = new PuppeteerCrawler({
       headless: self.headless,
-      maxRequestsPerCrawl: runOpts.maxRequestsPerCrawl ?? Infinity,
-
       maxRequestRetries: 0,
       navigationTimeoutSecs: self.navigationTimeoutSecs,
       requestHandlerTimeoutSecs: Math.max(self.navigationTimeoutSecs + 30, 90),
+
+      requestQueue: self._queue,
 
       browserPoolOptions: {
         retireBrowserAfterPageCount: Number.MAX_SAFE_INTEGER,
@@ -102,7 +105,8 @@ export class HoldInstance {
       ],
 
       async requestHandler(ctx) {
-        const { page, log } = ctx;
+        const { page, request } = ctx;
+        const key = request.userData?.jobKey;
 
         try {
           await page.waitForSelector("body", { timeout: 30_000 });
@@ -117,18 +121,44 @@ export class HoldInstance {
           } catch {}
 
           const stableEval = createStableEval(page);
-          if (typeof handler === "function") {
-            await handler({ ...ctx, stableEval });
+
+          // пользовательский парсер
+          let result = null;
+          if (typeof self.extractor === "function") {
+            result = await self.extractor(page, request.url, {
+              ctx,
+              stableEval,
+            });
+          } else {
+            // дефолт
+            result = await stableEval(() => {
+              const h1 = document.querySelector("h1");
+              return {
+                title: h1 ? h1.textContent.trim() : null,
+                url: location.href,
+              };
+            });
           }
 
-          // ВАЖНО: не ставим здесь "вечную паузу", иначе run() не завершится!
+          const waiter = key ? self._pending.get(key) : null;
+          if (waiter) {
+            waiter.resolve({ ok: true, url: request.url, result });
+            self._pending.delete(key);
+          }
         } catch (err) {
           console.error("❌ Handler error:", err?.message || err);
+          const waiter = key ? self._pending.get(key) : null;
+
+          if (waiter) {
+            waiter.reject(err);
+            self._pending.delete(key);
+          }
+
           if (self.waitOnError) {
             console.log(
-              "⏸️ waitOnError=true → удерживаю окно после ошибки. Нажми Ctrl+C чтобы выйти."
+              "⏸️ waitOnError=true → держу окно. Ctrl+C чтобы выйти."
             );
-            await new Promise(() => {}); // держим только при ошибке по желанию
+            await new Promise(() => {});
           } else {
             throw err;
           }
@@ -136,36 +166,115 @@ export class HoldInstance {
       },
 
       async failedRequestHandler({ request, error }) {
+        const key = request.userData?.jobKey;
         console.error(
           "❌ failedRequestHandler:",
           request.url,
           "-",
           error?.message || error
         );
-        if (self.waitOnError) {
+        const waiter = key ? this._pending.get(key) : null;
+        if (waiter) {
+          waiter.reject(error);
+          this._pending.delete(key);
+        }
+        if (this.waitOnError) {
           console.log(
-            "⏸️ waitOnError=true → удерживаю окно после навигационной ошибки. Нажми Ctrl+C чтобы выйти."
+            "⏸️ waitOnError=true → держу окно после nav-ошибки. Ctrl+C чтобы выйти."
           );
           await new Promise(() => {});
         }
       },
     });
+  }
 
-    await crawler.run(urls);
+  async #ensureRun() {
+    if (this._isRunning) return this._runPromise;
 
-    // Держим окно ПОСЛЕ полного прогона (если нужно)
-    if (runOpts.holdAfterRun) {
-      console.log(
-        "⏸️ holdAfterRun=true → удерживаю окно после завершения прогона. Нажми Ctrl+C чтобы выйти."
-      );
-      await new Promise(() => {});
+    this._isRunning = true;
+    this._runPromise = (async () => {
+      try {
+        console.log("▶️ crawler.run() started");
+        await this._crawler.run(); // завершится, когда очередь опустеет
+        console.log("⏹️ crawler.run() finished (queue empty)");
+      } finally {
+        this._isRunning = false;
+      }
+    })();
+
+    return this._runPromise;
+  }
+
+  /**
+   * Поставить URL в очередь и дождаться результата парсинга.
+   * @param {string} url
+   * @param {{ uniqueKey?: string, userData?: any }} [opts]
+   */
+  async enqueue(url, { uniqueKey, userData } = {}) {
+    if (!url || typeof url !== "string") {
+      throw new Error("enqueue(url): нужен валидный URL (string).");
     }
+
+    const jobKey = crypto.randomUUID();
+    const promise = new Promise((resolve, reject) => {
+      this._pending.set(jobKey, { resolve, reject });
+    });
+
+    // Генерим уникальный ключ, если не передан явно
+    const effectiveKey = uniqueKey || `${url}::${Date.now()}`;
+    const addRes = await this._queue.addRequest(
+      {
+        url,
+        uniqueKey: effectiveKey,
+        userData: { ...(userData || {}), jobKey },
+      },
+      { forefront: true }
+    );
+
+    // Если задача уже была/есть — форсируем повтор с новым ключом
+    if (addRes?.wasAlreadyHandled || addRes?.wasAlreadyPresent) {
+      const forceKey = `${url}::force::${Date.now()}`;
+      const addRes2 = await this._queue.addRequest(
+        {
+          url,
+          uniqueKey: forceKey,
+          userData: { ...(userData || {}), jobKey },
+        },
+        { forefront: true }
+      );
+
+      if (addRes2?.wasAlreadyHandled) {
+        const waiter = this._pending.get(jobKey);
+        if (waiter) {
+          waiter.reject(
+            new Error("Request wasAlreadyHandled; use uniqueKey to re-run.")
+          );
+          this._pending.delete(jobKey);
+        }
+        return promise;
+      }
+    }
+
+    // гарантируем запуск краулера
+    this.#ensureRun().catch((e) => {
+      console.error("ensureRun() error:", e);
+      const waiter = this._pending.get(jobKey);
+      if (waiter) {
+        waiter.reject(e);
+        this._pending.delete(jobKey);
+      }
+    });
+
+    return promise;
   }
 
   async stop() {
-    console.log(
-      "ℹ️ stop(): Crawlee закроет браузер после завершения run(). Для принудительного выхода — Ctrl+C."
-    );
+    console.log("ℹ️ stop(): дождусь завершения текущего run() (если он идёт).");
+    try {
+      if (this._runPromise) await this._runPromise;
+    } catch (e) {
+      console.error("stop() run error:", e);
+    }
   }
 }
 
