@@ -7,6 +7,12 @@ import { neonet } from "../neonet/index.js";
 
 import { getDomainWithoutTLD } from "./urls.js";
 import { allegro } from "../allegro/index.js";
+import { avans } from "../avans/index.js";
+import { digiexpert } from "../digiexpert/index.js";
+import { electro } from "../electro/index.js";
+import { oleole } from "../oleole/index.js";
+import { robotworld } from "../robotworld/index.js";
+import { senetic } from "../senetic/index.js";
 
 const map = {
   "euro.com": eurocom,
@@ -16,6 +22,12 @@ const map = {
   maxelektro,
   neonet,
   allegro,
+  avans,
+  digiexpert,
+  electro,
+  oleole,
+  robotworld,
+  senetic,
 };
 
 /**
