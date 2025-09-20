@@ -12,11 +12,12 @@ import { maxelektro } from "./services/maxelektro/index.js";
 import { mediaexpert } from "./services/mediaexpert/index.js";
 import { mediamarkt } from "./services/mediamarkt/index.js";
 import { neonet } from "./services/neonet/index.js";
+import { oleole } from "./services/oleole/index.js";
 import { getFullDataMarket } from "./services/utils/get-full-data.js";
 //const URL = "https://www.google.com/";
 //const URL = "https://www.ceneo.pl/181663513";
 const URL =
-  "https://www.avans.pl/agd-male/agd-male-do-domu/odkurzacze-automatyczne/robot-sprzatajacy-roborock-saros-10-r?utm_source=Ceneo&utm_medium=cpc&utm_content=2065153&utm_campaign=2025-09&utm_term=Roboty-sprzatajace&ceneo_spo=true&ceneo_cid=89779015-d591-af48-f348-5d02314658e4";
+  "https://www.oleole.pl/odkurzacze-automatyczne/roborock-saros-10r_1.bhtml";
 // ──────────────────────────────────────────────────────────────
 // Функция для извлечения цены из страницы
 // ──────────────────────────────────────────────────────────────
@@ -40,7 +41,7 @@ const hold = await HoldInstance.create({
 
   // сессии
   sessionBaseDir: "./session", // базовая папка
-  profileName: "parser2", // имя профиля → ./session/parser2
+  profileName: "parser3", // имя профиля → ./session/parser2
   // или можно так (перекроет два поля выше):
   // sessionDir: "./session/parser2",
 
@@ -52,10 +53,10 @@ const hold = await HoldInstance.create({
 
 await hold.open(URL, async ({ page }) => {
   //const data = await getFullDataMarket(page, URL);
-  const { price } = await avans.extractPrice(page);
-  const { title } = await avans.extractTitle(page);
-  const { delivery } = await avans.extractDelivery(page);
-  const { image } = await avans.extractImage(page);
+  const { price } = await oleole.extractPrice(page);
+  const { title } = await oleole.extractTitle(page);
+  const { delivery } = await oleole.extractDelivery(page);
+  const { image } = await oleole.extractImage(page);
   // const data = await ceneo.getListUrls(page);
   console.log({ title, price, delivery, image });
 });
