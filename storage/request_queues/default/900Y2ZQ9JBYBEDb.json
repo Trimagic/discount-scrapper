@@ -1,0 +1,9 @@
+{
+	"id": "900Y2ZQ9JBYBEDb",
+	"json": "{\"id\":\"900Y2ZQ9JBYBEDb\",\"url\":\"https://www.avans.pl/agd-male/agd-male-do-domu/odkurzacze-automatyczne/robot-sprzatajacy-roborock-saros-10-r?utm_source=Ceneo&utm_medium=cpc&utm_content=2065153&utm_campaign=2025-09&utm_term=Roboty-sprzatajace&ceneo_spo=true&ceneo_cid=89779015-d591-af48-f348-5d02314658e4\",\"loadedUrl\":\"https://www.avans.pl/agd-male/agd-male-do-domu/odkurzacze-automatyczne/robot-sprzatajacy-roborock-saros-10-r?ceneo_cid=89779015-d591-af48-f348-5d02314658e4&ceneo_spo=true\",\"uniqueKey\":\"https://www.avans.pl/agd-male/agd-male-do-domu/odkurzacze-automatyczne/robot-sprzatajacy-roborock-saros-10-r?ceneo_cid=89779015-d591-af48-f348-5d02314658e4&ceneo_spo=true\",\"method\":\"GET\",\"noRetry\":false,\"retryCount\":0,\"errorMessages\":[\"Error: requestHandler timed out after 90 seconds.\\n    at Timeout._onTimeout (C:\\\\Users\\\\aleks\\\\Desktop\\\\discount-scrapper\\\\node_modules\\\\@apify\\\\timeout\\\\cjs\\\\index.cjs:64:68)\\n    at listOnTimeout (node:internal/timers:594:17)\\n    at process.processTimers (node:internal/timers:529:7)\"],\"headers\":{},\"userData\":{\"__crawlee\":{\"state\":5}},\"handledAt\":\"2025-09-20T09:05:36.274Z\"}",
+	"method": "GET",
+	"orderNo": null,
+	"retryCount": 0,
+	"uniqueKey": "https://www.avans.pl/agd-male/agd-male-do-domu/odkurzacze-automatyczne/robot-sprzatajacy-roborock-saros-10-r?ceneo_cid=89779015-d591-af48-f348-5d02314658e4&ceneo_spo=true",
+	"url": "https://www.avans.pl/agd-male/agd-male-do-domu/odkurzacze-automatyczne/robot-sprzatajacy-roborock-saros-10-r?utm_source=Ceneo&utm_medium=cpc&utm_content=2065153&utm_campaign=2025-09&utm_term=Roboty-sprzatajace&ceneo_spo=true&ceneo_cid=89779015-d591-af48-f348-5d02314658e4"
+}

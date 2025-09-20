@@ -1,0 +1,228 @@
+{
+  "usableSessionsCount": 2,
+  "retiredSessionsCount": 0,
+  "sessions": [
+    {
+      "id": "session_NuPHsbWyIz",
+      "cookieJar": {
+        "version": "tough-cookie@6.0.0",
+        "storeType": "MemoryCookieStore",
+        "rejectPublicSuffixes": true,
+        "enableLooseMode": false,
+        "allowSpecialUseDomain": true,
+        "prefixSecurity": "silent",
+        "cookies": []
+      },
+      "userData": {},
+      "maxErrorScore": 3,
+      "errorScoreDecrement": 0.5,
+      "expiresAt": "2025-09-20T09:53:56.241Z",
+      "createdAt": "2025-09-20T09:03:56.241Z",
+      "usageCount": 0,
+      "maxUsageCount": 50,
+      "errorScore": 0
+    },
+    {
+      "id": "session_IZcZeAa5sy",
+      "cookieJar": {
+        "version": "tough-cookie@6.0.0",
+        "storeType": "MemoryCookieStore",
+        "rejectPublicSuffixes": true,
+        "enableLooseMode": false,
+        "allowSpecialUseDomain": true,
+        "prefixSecurity": "silent",
+        "cookies": [
+          {
+            "key": "cto_bundle",
+            "value": "4eP4eV9lNHIlMkJrR2xzQ3VpRGthZ2RNN3FoekhWWWdDdiUyRjVuczg1TlJTYk05UVFoUXVMT0s0RkNRaU0lMkY4UDIzTWNRSWc4TTk0Y3A2YW1hYSUyQjQzeEZmSXdrODNIY0ZrenFYcWJZWVRxZ1JMa05LVVFGOGsyaVdHd085Z1ZHc05YbzV6VFJF",
+            "expires": "2026-10-20T19:04:01.000Z",
+            "domain": "avans.pl",
+            "path": "/",
+            "hostOnly": false,
+            "creation": "2025-09-20T09:04:06.250Z",
+            "lastAccessed": "2025-09-20T09:04:06.250Z"
+          },
+          {
+            "key": "_snrs_cid2",
+            "value": "3642715823712",
+            "expires": "2026-09-20T09:04:01.000Z",
+            "domain": "www.avans.pl",
+            "path": "/",
+            "hostOnly": true,
+            "creation": "2025-09-20T09:04:06.254Z",
+            "lastAccessed": "2025-09-20T09:04:06.254Z"
+          },
+          {
+            "key": "_snrs_cid",
+            "value": "-403143369120",
+            "expires": "2026-09-20T09:04:01.000Z",
+            "domain": "www.avans.pl",
+            "path": "/",
+            "hostOnly": true,
+            "creation": "2025-09-20T09:04:06.254Z",
+            "lastAccessed": "2025-09-20T09:04:06.254Z"
+          },
+          {
+            "key": "_snrs_p",
+            "value": "host:www.avans.pl&permUuid:e4828d85-7ee7-4530-8416-3f006e7ffd76&uuid:e4828d85-7ee7-4530-8416-3f006e7ffd76&identityHash:&user_hash:&init:1758326120&last:1758326120&current:1758359041&uniqueVisits:1&allVisits:2&globalControlGroup:false",
+            "expires": "2026-10-25T09:04:01.000Z",
+            "domain": "avans.pl",
+            "path": "/",
+            "secure": true,
+            "hostOnly": false,
+            "creation": "2025-09-20T09:04:06.255Z",
+            "lastAccessed": "2025-09-20T09:04:06.255Z"
+          },
+          {
+            "key": "_snrs_sa",
+            "value": "ssuid:8ee1e32f-5bac-4fb2-a3e2-f820bafd357a&appear:1758359040&sessionVisits:1",
+            "expires": "2025-09-20T09:34:01.000Z",
+            "domain": "avans.pl",
+            "path": "/",
+            "secure": true,
+            "hostOnly": false,
+            "creation": "2025-09-20T09:04:06.256Z",
+            "lastAccessed": "2025-09-20T09:04:06.256Z"
+          },
+          {
+            "key": "device_view",
+            "value": "full",
+            "expires": "2025-10-19T23:55:19.988Z",
+            "domain": "www.avans.pl",
+            "path": "/",
+            "secure": true,
+            "httpOnly": true,
+            "hostOnly": true,
+            "creation": "2025-09-20T09:04:06.256Z",
+            "lastAccessed": "2025-09-20T09:04:06.256Z"
+          },
+          {
+            "key": "OptanonConsent",
+            "value": "isGpcEnabled=0&datestamp=Sat+Sep+20+2025+12%3A04%3A00+GMT%2B0300+(%D0%9C%D0%BE%D1%81%D0%BA%D0%B2%D0%B0%2C+%D1%81%D1%82%D0%B0%D0%BD%D0%B4%D0%B0%D1%80%D1%82%D0%BD%D0%BE%D0%B5+%D0%B2%D1%80%D0%B5%D0%BC%D1%8F)&version=202403.1.0&browserGpcFlag=0&isIABGlobal=false&hosts=&consentId=61f206b3-84ab-463d-a196-e504fc0fb13d&interactionCount=1&isAnonUser=1&landingPath=NotLandingPage&groups=ME001%3A1%2CME002%3A1%2CME003%3A1%2CME004%3A1&geolocation=PL%3B14&AwaitingReconsent=false",
+            "expires": "2026-09-20T09:04:00.000Z",
+            "domain": "www.avans.pl",
+            "path": "/",
+            "hostOnly": true,
+            "creation": "2025-09-20T09:04:06.256Z",
+            "lastAccessed": "2025-09-20T09:04:06.256Z"
+          },
+          {
+            "key": "OptanonAlertBoxClosed",
+            "value": "2025-09-19T23:55:21.896Z",
+            "expires": "2026-09-19T23:55:21.000Z",
+            "domain": "www.avans.pl",
+            "path": "/",
+            "hostOnly": true,
+            "creation": "2025-09-20T09:04:06.256Z",
+            "lastAccessed": "2025-09-20T09:04:06.256Z"
+          },
+          {
+            "key": "LOGIN_SOURCE",
+            "value": "product/show",
+            "expires": "2025-09-20T09:54:06.248Z",
+            "domain": "www.avans.pl",
+            "path": "/",
+            "hostOnly": true,
+            "creation": "2025-09-20T09:04:06.257Z",
+            "lastAccessed": "2025-09-20T09:04:06.257Z"
+          },
+          {
+            "key": "_gcl_au",
+            "value": "1.1.420531952.1758326122",
+            "expires": "2025-12-18T23:55:22.000Z",
+            "domain": "avans.pl",
+            "path": "/",
+            "hostOnly": false,
+            "creation": "2025-09-20T09:04:06.257Z",
+            "lastAccessed": "2025-09-20T09:04:06.257Z"
+          },
+          {
+            "key": "_snrs_sb",
+            "value": "ssuid:8ee1e32f-5bac-4fb2-a3e2-f820bafd357a&leaves:1758359041",
+            "expires": "2025-09-20T09:34:01.000Z",
+            "domain": "avans.pl",
+            "path": "/",
+            "secure": true,
+            "hostOnly": false,
+            "creation": "2025-09-20T09:04:06.257Z",
+            "lastAccessed": "2025-09-20T09:04:06.257Z"
+          },
+          {
+            "key": "_snrs_cide",
+            "value": "ZTQ4MjhkODUtN2VlNy00NTMwLTg0MTYtM2YwMDZlN2ZmZDc2QGFub255bW91cy5pbnZhbGlk",
+            "expires": "2026-09-20T09:04:01.000Z",
+            "domain": "www.avans.pl",
+            "path": "/",
+            "hostOnly": true,
+            "creation": "2025-09-20T09:04:06.257Z",
+            "lastAccessed": "2025-09-20T09:04:06.257Z"
+          },
+          {
+            "key": "LOGIN_STATUS_VERIFY",
+            "value": "0",
+            "expires": "2025-09-20T09:54:06.248Z",
+            "domain": "www.avans.pl",
+            "path": "/",
+            "hostOnly": true,
+            "creation": "2025-09-20T09:04:06.257Z",
+            "lastAccessed": "2025-09-20T09:04:06.257Z"
+          },
+          {
+            "key": "_snrs_puuid",
+            "value": "e4828d85-7ee7-4530-8416-3f006e7ffd76",
+            "expires": "2026-10-25T09:04:01.000Z",
+            "domain": "avans.pl",
+            "path": "/",
+            "secure": true,
+            "hostOnly": false,
+            "creation": "2025-09-20T09:04:06.257Z",
+            "lastAccessed": "2025-09-20T09:04:06.257Z"
+          },
+          {
+            "key": "_snrs_uuid",
+            "value": "e4828d85-7ee7-4530-8416-3f006e7ffd76",
+            "expires": "2026-10-25T09:04:01.000Z",
+            "domain": "avans.pl",
+            "path": "/",
+            "secure": true,
+            "hostOnly": false,
+            "creation": "2025-09-20T09:04:06.257Z",
+            "lastAccessed": "2025-09-20T09:04:06.257Z"
+          },
+          {
+            "key": "2c3a31aa9e353b308f950a852d04ae5b",
+            "value": "0",
+            "expires": "2025-10-21T09:03:59.137Z",
+            "domain": "www.avans.pl",
+            "path": "/",
+            "secure": true,
+            "httpOnly": true,
+            "hostOnly": true,
+            "creation": "2025-09-20T09:04:06.257Z",
+            "lastAccessed": "2025-09-20T09:04:06.257Z"
+          },
+          {
+            "key": "PHPSESSID",
+            "value": "ef9o335v9fjpq9isd62sotpk0s",
+            "expires": "2025-10-19T23:55:19.861Z",
+            "domain": "www.avans.pl",
+            "path": "/",
+            "secure": true,
+            "httpOnly": true,
+            "hostOnly": true,
+            "creation": "2025-09-20T09:04:06.257Z",
+            "lastAccessed": "2025-09-20T09:04:06.257Z"
+          }
+        ]
+      },
+      "userData": {},
+      "maxErrorScore": 3,
+      "errorScoreDecrement": 0.5,
+      "expiresAt": "2025-09-20T09:53:56.244Z",
+      "createdAt": "2025-09-20T09:03:56.244Z",
+      "usageCount": 0,
+      "maxUsageCount": 50,
+      "errorScore": 0
+    }
+  ]
+}
