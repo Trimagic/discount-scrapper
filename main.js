@@ -16,10 +16,11 @@ import { oleole } from "./services/oleole/index.js";
 import { getFullDataMarket } from "./services/utils/get-full-data.js";
 import { senetic } from "./services/senetic/index.js";
 import { digiexpert } from "./services/digiexpert/index.js";
+import { robotworld } from "./services/robotworld/index.js";
 //const URL = "https://www.google.com/";
 //const URL = "https://www.ceneo.pl/181663513";
 const URL =
-  "https://www.digiexpert.pl/sprzet-agd/ma-e-agd-do-domu/odkurzacze-automatyczne/roborock-saros-10r-product-5495";
+  "https://www.robotworld.pl/roborock-saros-10r?%3Futm_source=ceneo.pl&ceneo_cid=895c986b-cc69-fc5f-e84e-fbde275ff376";
 // ──────────────────────────────────────────────────────────────
 // Функция для извлечения цены из страницы
 // ──────────────────────────────────────────────────────────────
@@ -63,10 +64,10 @@ const hold = await HoldInstance.create({
 await hold.open(URL, async ({ page }) => {
   //const data = await getFullDataMarket(page, URL);
 
-  const { price } = await digiexpert.extractPrice(page);
-  const { title } = await digiexpert.extractTitle(page);
-  const { delivery } = await digiexpert.extractDelivery(page);
-  const { image } = await digiexpert.extractImage(page);
+  const { price } = await robotworld.extractPrice(page);
+  const { title } = await robotworld.extractTitle(page);
+  const { delivery } = await robotworld.extractDelivery(page);
+  const { image } = await robotworld.extractImage(page);
   // const data = await ceneo.getListUrls(page);
   console.log({ title, price, delivery, image });
 });
