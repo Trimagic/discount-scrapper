@@ -1,82 +1,153 @@
 /* eslint-disable no-console */
-// run-hold.js — простой лаунчер для HoldInstance
+import { Hono } from "hono";
+import { cors } from "hono/cors";
+import { serve } from "@hono/node-server";
 
 import { HoldInstance } from "./instance/crawlee/simple.js";
-import { allegro } from "./services/allegro/index.js";
-import { avans } from "./services/avans/index.js";
-import { ceneo } from "./services/ceneo/index.js";
-import { electro } from "./services/electro/index.js";
-import { eurocom } from "./services/euro.com/index.js";
-import { komputronik } from "./services/komputronik/index.js";
-import { maxelektro } from "./services/maxelektro/index.js";
-import { mediaexpert } from "./services/mediaexpert/index.js";
-import { mediamarkt } from "./services/mediamarkt/index.js";
-import { neonet } from "./services/neonet/index.js";
-import { oleole } from "./services/oleole/index.js";
 import { getFullDataMarket } from "./services/utils/get-full-data.js";
-import { senetic } from "./services/senetic/index.js";
-import { digiexpert } from "./services/digiexpert/index.js";
-import { robotworld } from "./services/robotworld/index.js";
-//const URL = "https://www.google.com/";
-const URL = "https://www.ceneo.pl/181663513";
-//const URL =
-("https://www.robotworld.pl/roborock-saros-10r?%3Futm_source=ceneo.pl&ceneo_cid=895c986b-cc69-fc5f-e84e-fbde275ff376");
-// ──────────────────────────────────────────────────────────────
-// Функция для извлечения цены из страницы
-// ──────────────────────────────────────────────────────────────
 
-// ──────────────────────────────────────────────────────────────
-// Запуск HoldInstance
-// ──────────────────────────────────────────────────────────────
-// const hold = await HoldInstance.create({
-//   profileName: "parser",
-//   headless: false,
-//   width: 1920,
-//   height: 900,
-//   locale: "pl-PL,pl;q=0.9,en-US;q=0.8,ru;q=0.7",
-//   stealth: true,
-// });
+const HOST = process.env.HOST ?? "0.0.0.0";
+const PORT = Number(process.env.PORT ?? 5000);
 
-const hold = await HoldInstance.create({
+// Опции для каждого запроса (инстанс будет одноразовый)
+const HOLD_OPTS = {
   width: 1920,
   height: 900,
   headless: false,
-
-  // сессии
-  sessionBaseDir: "./session", // базовая папка
-  profileName: "parser3", // имя профиля → ./session/parser2
-  // или можно так (перекроет два поля выше):
-  // sessionDir: "./session/parser2",
-
-  // поведение
-  keepOpenOnSuccess: true,
+  sessionBaseDir: "./session",
+  profileName: "parser3",
+  keepOpenOnSuccess: false,
   waitOnError: true,
   navigationTimeoutSecs: 60,
-});
+};
 
-/**
- * Проверяет наличие цены (zł) и логирует все совпадения.
- *
- * @param {import('puppeteer').Page} page
- * @returns {Promise<void>}
- */
+const REQUEST_TIMEOUT_MS = 90_000;
 
-await hold.open(URL, async ({ page }) => {
-  //const data = await getFullDataMarket(page, URL);
-
-  // const { price } = await robotworld.extractPrice(page);
-  // const { title } = await robotworld.extractTitle(page);
-  // const { delivery } = await robotworld.extractDelivery(page);
-  // const { image } = await robotworld.extractImage(page);
-  const data = await ceneo.getListUrls(page);
-  console.log({ data });
-});
-
-// Ctrl+C → корректно закрываем
-process.on("SIGINT", async () => {
-  console.log("\nЗакрываю инстанс…");
+function isValidHttpUrl(value) {
   try {
-    await hold.stop();
-  } catch {}
-  process.exit(0);
+    const u = new URL(value);
+    return u.protocol === "http:" || u.protocol === "https:";
+  } catch {
+    return false;
+  }
+}
+
+async function withTimeout(promise, ms, msg = "Timed out") {
+  let t;
+  const timeout = new Promise((_, reject) => {
+    t = setTimeout(() => reject(new Error(msg)), ms);
+  });
+  try {
+    // Гонка промисов: либо основной завершается, либо таймаут бросает ошибку
+    return await Promise.race([promise, timeout]);
+  } finally {
+    clearTimeout(t);
+  }
+}
+
+const app = new Hono();
+app.use("*", cors());
+
+app.get("/healthz", (c) => {
+  console.log("[server] GET /healthz");
+  return c.json({ ok: true });
 });
+
+app.post("/parse", async (c) => {
+  console.log("[parse] POST /parse received");
+
+  const ct = c.req.header("content-type") || "";
+  if (!ct.includes("application/json")) {
+    console.warn("[parse] wrong content-type:", ct);
+    return c.json({ error: "Content-Type must be application/json" }, 415);
+  }
+
+  let body;
+  try {
+    body = await c.req.json();
+    console.log("[parse] body:", body);
+  } catch {
+    console.warn("[parse] invalid JSON");
+    return c.json({ error: "Invalid JSON" }, 400);
+  }
+
+  // Используем имя reqUrl, чтобы не пересекаться с глобальным URL или случайными переменными
+  const reqUrl = body?.url?.trim?.();
+  if (!reqUrl || !isValidHttpUrl(reqUrl)) {
+    console.warn("[parse] invalid url:", reqUrl);
+    return c.json({ error: 'Field "url" must be a valid http(s) URL' }, 400);
+  }
+
+  const startedAt = Date.now();
+  console.log(`[parse] start → ${reqUrl}`);
+
+  const hold = await HoldInstance.create(HOLD_OPTS);
+
+  try {
+    // ⬇️ Возвращаем данные из колбэка и сразу их ждём
+    const parseResult = await withTimeout(
+      hold.open(reqUrl, async ({ page, request }) => {
+        console.log("[hold] inside crawler callback");
+        console.log("[hold] request.url:", request.url);
+
+        const data = await getFullDataMarket(page, request.url);
+        console.log("[hold] getFullDataMarket result:", data);
+
+        return data; // ← ключевое изменение
+      }),
+      REQUEST_TIMEOUT_MS,
+      `Parsing timed out after ${REQUEST_TIMEOUT_MS}ms`
+    );
+
+    const durationMs = Date.now() - startedAt;
+    console.log(`[parse] ✓ done in ${durationMs}ms for ${reqUrl}`);
+
+    // выпрямляем возможную форму { data, error }
+    const payload =
+      parseResult && typeof parseResult === "object" && "data" in parseResult
+        ? parseResult.data
+        : parseResult;
+
+    if (!payload) {
+      console.warn("[parse] parser returned no data");
+      return c.json(
+        { ok: false, url: reqUrl, error: "Parser returned no data" },
+        500
+      );
+    }
+
+    const sourceDomain = new URL(reqUrl).hostname;
+
+    return c.json(
+      { ok: true, url: reqUrl, sourceDomain, ...payload, durationMs },
+      200
+    );
+  } catch (err) {
+    console.error(`[parse] ✗ error for ${reqUrl}:`, err?.message || err);
+    return c.json(
+      { ok: false, url: reqUrl, error: String(err?.message || err) },
+      500
+    );
+  } finally {
+    console.log("[hold] stopping HoldInstance...");
+    try {
+      await hold.stop();
+      console.log("[hold] HoldInstance stopped");
+    } catch (e) {
+      console.warn("[hold] hold.stop() warning:", e?.message || e);
+    }
+  }
+});
+
+console.log(`[server] Starting on http://${HOST}:${PORT}`);
+serve({ fetch: app.fetch, port: PORT, hostname: HOST }, (info) =>
+  console.log(`[server] Listening on http://${info.address}:${info.port}`)
+);
+
+// Корректное завершение
+async function shutdown() {
+  console.log("\n[server] shutdown signal received");
+  process.exit(0);
+}
+process.on("SIGINT", shutdown);
+process.on("SIGTERM", shutdown);

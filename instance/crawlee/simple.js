@@ -1,15 +1,10 @@
 /* eslint-disable no-console */
-// HoldInstance на Crawlee + PuppeteerCrawler + персистентная сессия
-// - сохраняет/читает профиль браузера из userDataDir
-// - sessionDir вычисляется из sessionBaseDir + profileName, либо можно передать напрямую
-// - держит окно открытым при успехе/ошибке
-// - без ретраев
-
 import { PuppeteerCrawler, Configuration } from "crawlee";
 import fs from "node:fs/promises";
 import path from "node:path";
 
 Configuration.set("systemInfoV2", true);
+Configuration.set("disableSystemInfo", true);
 
 export class HoldInstance {
   constructor(opts = {}) {
@@ -18,7 +13,7 @@ export class HoldInstance {
     this.headless = opts.headless ?? false;
 
     // поведение:
-    this.keepOpenOnSuccess = opts.keepOpenOnSuccess ?? true; // держать окно при успехе
+    this.holdAfterRun = opts.holdAfterRun ?? true; // ← держать окно ПОСЛЕ всего прогона
     this.waitOnError = opts.waitOnError ?? true; // держать окно при ошибке
 
     // навигация/тайминги:
@@ -27,7 +22,6 @@ export class HoldInstance {
     // сессии:
     this.sessionBaseDir = opts.sessionBaseDir ?? "./session";
     this.profileName = opts.profileName ?? undefined;
-    // если явно передали sessionDir — он перекрывает вычисление
     this.sessionDir = opts.sessionDir ?? undefined;
   }
 
@@ -49,16 +43,42 @@ export class HoldInstance {
   }
 
   /**
+   * Один URL.
    * @param {string} url
    * @param {(ctx: { page: import('puppeteer').Page, request: any, log: any, stableEval: <T>(fn: (...args:any[]) => T, ...args:any[])=>Promise<T> }) => Promise<void>} handler
+   * @param {{ holdAfterRun?: boolean }} [opts]
    */
-  async open(url, handler) {
-    const self = this; // фиксируем контекст
+  async open(url, handler, opts = {}) {
+    return this.#runInternal([url], handler, {
+      maxRequestsPerCrawl: 1,
+      holdAfterRun: opts.holdAfterRun ?? this.holdAfterRun,
+    });
+  }
+
+  /**
+   * Несколько URL-ов за один прогон.
+   * @param {string[]} urls
+   * @param {(ctx: { page: import('puppeteer').Page, request: any, log: any, stableEval: <T>(fn: (...args:any[]) => T, ...args:any[])=>Promise<T> }) => Promise<void>} handler
+   * @param {{ holdAfterRun?: boolean, maxRequestsPerCrawl?: number }} [opts]
+   */
+  async openMany(urls, handler, opts = {}) {
+    const m = Number.isFinite(opts.maxRequestsPerCrawl)
+      ? opts.maxRequestsPerCrawl
+      : urls.length || 1;
+    return this.#runInternal(urls, handler, {
+      maxRequestsPerCrawl: m,
+      holdAfterRun: opts.holdAfterRun ?? this.holdAfterRun,
+    });
+  }
+
+  async #runInternal(urls, handler, runOpts) {
+    const self = this;
 
     const crawler = new PuppeteerCrawler({
       headless: self.headless,
-      maxRequestsPerCrawl: 1,
-      maxRequestRetries: 0, // без ретраев
+      maxRequestsPerCrawl: runOpts.maxRequestsPerCrawl ?? Infinity,
+
+      maxRequestRetries: 0,
       navigationTimeoutSecs: self.navigationTimeoutSecs,
       requestHandlerTimeoutSecs: Math.max(self.navigationTimeoutSecs + 30, 90),
 
@@ -68,14 +88,12 @@ export class HoldInstance {
       },
 
       launchContext: {
-        // ВАЖНО: сохраняем/читаем профиль браузера тут
         userDataDir: self.sessionDir,
         launchOptions: {
           defaultViewport: { width: self.width, height: self.height },
         },
       },
 
-      // Настраиваем goto через preNavigationHooks (аналог gotoFunction в новых версиях)
       preNavigationHooks: [
         async (_ctx, gotoOptions) => {
           gotoOptions.waitUntil = "networkidle2";
@@ -84,10 +102,9 @@ export class HoldInstance {
       ],
 
       async requestHandler(ctx) {
-        const { page, request, log } = ctx;
+        const { page, log } = ctx;
 
         try {
-          // базовая стабилизация перед evaluate/$eval
           await page.waitForSelector("body", { timeout: 30_000 });
           await page.waitForFunction(
             () => ["interactive", "complete"].includes(document.readyState),
@@ -100,24 +117,18 @@ export class HoldInstance {
           } catch {}
 
           const stableEval = createStableEval(page);
-
           if (typeof handler === "function") {
-            await handler({ page, request, log, stableEval });
+            await handler({ ...ctx, stableEval });
           }
 
-          if (self.keepOpenOnSuccess) {
-            console.log(
-              "⏸️ keepOpenOnSuccess=true → удерживаю окно. Нажми Ctrl+C чтобы выйти."
-            );
-            await new Promise(() => {}); // держим при успехе
-          }
+          // ВАЖНО: не ставим здесь "вечную паузу", иначе run() не завершится!
         } catch (err) {
           console.error("❌ Handler error:", err?.message || err);
           if (self.waitOnError) {
             console.log(
               "⏸️ waitOnError=true → удерживаю окно после ошибки. Нажми Ctrl+C чтобы выйти."
             );
-            await new Promise(() => {}); // держим при ошибке
+            await new Promise(() => {}); // держим только при ошибке по желанию
           } else {
             throw err;
           }
@@ -140,7 +151,15 @@ export class HoldInstance {
       },
     });
 
-    await crawler.run([url]); // не вернётся, пока «вечная пауза» активна
+    await crawler.run(urls);
+
+    // Держим окно ПОСЛЕ полного прогона (если нужно)
+    if (runOpts.holdAfterRun) {
+      console.log(
+        "⏸️ holdAfterRun=true → удерживаю окно после завершения прогона. Нажми Ctrl+C чтобы выйти."
+      );
+      await new Promise(() => {});
+    }
   }
 
   async stop() {
@@ -150,10 +169,6 @@ export class HoldInstance {
   }
 }
 
-/**
- * Обёртка для page.evaluate:
- * При "Execution context was destroyed" ждём DOM и пробуем ещё раз (1 раз).
- */
 function createStableEval(page) {
   return async (fn, ...args) => {
     try {
