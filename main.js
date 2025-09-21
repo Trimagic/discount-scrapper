@@ -29,7 +29,19 @@ const hold = await HoldInstanceQueue.create({
 });
 
 const app = new Hono();
-app.use("*", cors());
+// CORS до всех роутов
+app.use(
+  "*",
+  cors({
+    // Разрешить любой Origin (и работать с null origin — например из file:// или расширений)
+    origin: (origin) => origin ?? "*",
+    allowMethods: ["GET", "POST", "OPTIONS"],
+    allowHeaders: ["*"], // или перечисли явно: ["content-type", "authorization", ...]
+    exposeHeaders: ["*"],
+    maxAge: 86400,
+    credentials: false, // если нужно с куками/Authorization и credentials — смотри примечание ниже
+  })
+);
 
 app.get("/", (c) => c.json({ ok: true, msg: "Hold crawler alive" }));
 
@@ -51,7 +63,7 @@ app.post("/parse", async (c) => {
       "Timed out waiting for parse result"
     );
 
-    return c.json({ ok: true, url, result });
+    return c.json(result);
   } catch (e) {
     return c.json({ ok: false, error: String(e?.message || e) }, 500);
   }
