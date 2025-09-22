@@ -2,9 +2,12 @@ import { getFullDataMarket } from "../utils/get-full-data.js";
 import { stripQueryParams } from "../utils/urls.js";
 
 /**
- * Собирает ссылки внутри .product-offer__logo, поочерёдно открывает их
- * (пауза 1с), выполняет пользовательский код ПОСЛЕ редиректа
- * и возвращает финальные URL.
+ * Логирующая версия getListUrls:
+ * — находит ссылки офферов
+ * — докручивает редиректы/js/meta
+ * — вызывает getFullDataMarket ИСКЛЮЧИТЕЛЬНО с finalUrl (не cleaned)
+ * — пропускает домены ceneo.pl и /Captcha
+ * — возвращает массив валидных результатов парсера
  *
  * @param {import('puppeteer').Page} page
  * @param {(ctx: {
@@ -12,145 +15,221 @@ import { stripQueryParams } from "../utils/urls.js";
  *   original: string,
  *   finalUrl: string,
  *   cleanedUrl: string,
- *   price: string | number | null,
+ *   data: any
  * }) => Promise<void>} [onResolved]
- * @returns {Promise<{ finalUrls: string[], results: { original: string, final: string }[] }>}
+ * @returns {Promise<any[]>}
  */
 export async function getListUrls(page, onResolved) {
   const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+  console.log("[getListUrls] ⏳ старт, жду 1с для прогрузки страницы…");
   await sleep(1000);
 
-  // 1) Собираем абсолютные href и убираем дубли
+  console.log("[getListUrls] 🔎 ищу ссылки в .product-offer__logo a[href]");
   const rawLinks = await page.evaluate(() => {
-    const anchors = Array.from(
-      document.querySelectorAll(".product-offer__logo a[href]")
-    );
-    const abs = anchors
-      .map((a) => {
-        const href = a.getAttribute("href") || "";
-        try {
-          return new URL(href, window.location.origin).href;
-        } catch {
-          return null;
-        }
-      })
-      .filter(Boolean);
-    return Array.from(new Set(abs));
+    try {
+      const anchors = Array.from(
+        document.querySelectorAll(".product-offer__logo a[href]")
+      );
+      const abs = anchors
+        .map((a) => {
+          try {
+            const href = a.getAttribute("href") || "";
+            return new URL(href, window.location.origin).href;
+          } catch {
+            return null;
+          }
+        })
+        .filter(Boolean);
+      return Array.from(new Set(abs));
+    } catch {
+      return [];
+    }
   });
+  console.log(`[getListUrls] ✅ найдено ссылок: ${rawLinks.length}`);
 
-  const finalUrls = [];
-  const results = [];
   const referer = page.url();
+  const dataOnly = [];
 
-  // 2) Поочерёдно открываем каждую ссылку
-  for (const originalUrl of rawLinks) {
+  for (const [i, originalUrl] of rawLinks.entries()) {
     let tab;
+    console.log(
+      `\n[getListUrls] ▶️ ${i + 1}/${rawLinks.length} => ${originalUrl}`
+    );
     try {
       tab = await page.browser().newPage();
+      tab.on("pageerror", (err) =>
+        console.log(`[tab ${i + 1}] ⚠️ pageerror:`, err)
+      );
+      tab.on("console", (msg) =>
+        console.log(`[tab ${i + 1}] 🖥 console:`, msg.text())
+      );
 
       await tab.setExtraHTTPHeaders({
         Referer: referer,
         "Accept-Language": "pl-PL,pl;q=0.9,en-US;q=0.8,ru;q=0.7",
       });
 
-      const resp = await tab.goto(originalUrl, {
-        waitUntil: "networkidle2",
+      console.log(`[tab ${i + 1}] 🌐 goto original`);
+      await tab.goto(originalUrl, {
+        waitUntil: "domcontentloaded",
         timeout: 30_000,
         referer,
       });
 
-      let finalUrl =
-        (typeof resp?.url === "function" ? resp.url() : null) || tab.url();
+      // докрутка редиректов
+      const deadline = Date.now() + 5000;
+      let last = tab.url();
+      console.log(`[tab ${i + 1}] ⏩ старт редиректов: ${last}`);
+      while (Date.now() < deadline) {
+        const nav = tab
+          .waitForNavigation({ timeout: 500, waitUntil: "domcontentloaded" })
+          .catch(() => null);
+        await nav;
 
-      // 2.1) Ждём возможные JS-редиректы (до ~3с)
-      const end = Date.now() + 3000;
-      let last = finalUrl;
-      while (Date.now() < end) {
-        await sleep(200);
-        const current = tab.url();
-        if (current !== last) {
-          last = current;
-          finalUrl = current;
-          await sleep(300);
+        const cur = tab.url();
+        if (cur && cur !== last) {
+          console.log(`[tab ${i + 1}] 🔁 redirect → ${cur}`);
+          last = cur;
+          await sleep(200);
+          continue;
         }
+
+        // meta refresh
+        const metaUrl = await tab
+          .evaluate(() => {
+            try {
+              const m = document.querySelector('meta[http-equiv="refresh" i]');
+              if (!m) return null;
+              const c = (m.getAttribute("content") || "").toLowerCase();
+              const idx = c.indexOf("url=");
+              if (idx === -1) return null;
+              let u = c.slice(idx + 4).trim();
+              if (
+                (u.startsWith('"') && u.endsWith('"')) ||
+                (u.startsWith("'") && u.endsWith("'"))
+              ) {
+                u = u.slice(1, -1);
+              }
+              return u || null;
+            } catch {
+              return null;
+            }
+          })
+          .catch(() => null);
+
+        if (metaUrl && metaUrl !== last) {
+          const abs = /^https?:\/\//i.test(metaUrl)
+            ? metaUrl
+            : new URL(metaUrl, last || originalUrl).href;
+          console.log(`[tab ${i + 1}] 🔄 meta-refresh → ${abs}`);
+          await tab
+            .goto(abs, {
+              waitUntil: "domcontentloaded",
+              timeout: 15000,
+              referer: last || referer,
+            })
+            .catch((e) => console.log(`[tab ${i + 1}] ⚠️ meta goto err:`, e));
+          last = tab.url();
+          await sleep(200);
+          continue;
+        }
+
+        console.log(`[tab ${i + 1}] ✅ редиректы завершены`);
+        await sleep(250);
+        break;
       }
 
-      // 2.2) Fallback на <meta http-equiv="refresh">
+      // финальный URL (именно его передаём в парсер!)
+      let finalUrl = await tab
+        .evaluate(() => window.location.href)
+        .catch(() => null);
+      if (!finalUrl) finalUrl = tab.url() || originalUrl;
+
+      // для читаемости/логов — отдельно cleaned (не передаём его в парсер!)
+      let cleanedUrl = finalUrl;
       try {
-        const metaUrl = await tab.evaluate(() => {
-          const m = document.querySelector('meta[http-equiv="refresh" i]');
-          if (!m) return null;
-          const c = (m.getAttribute("content") || "").toLowerCase();
-          const idx = c.indexOf("url=");
-          if (idx === -1) return null;
-          let u = c.slice(idx + 4).trim();
-          if (
-            (u.startsWith('"') && u.endsWith('"')) ||
-            (u.startsWith("'") && u.endsWith("'"))
-          ) {
-            u = u.slice(1, -1);
-          }
-          try {
-            return new URL(u, window.location.origin).href;
-          } catch {
-            return null;
-          }
-        });
-
-        if (metaUrl && metaUrl !== finalUrl) {
-          const resp2 = await tab.goto(metaUrl, {
-            waitUntil: "networkidle2",
-            timeout: 15_000,
-            referer: finalUrl,
-          });
-          finalUrl =
-            (typeof resp2?.url === "function" ? resp2.url() : null) ||
-            tab.url();
-
-          const end2 = Date.now() + 1500;
-          let last2 = finalUrl;
-          while (Date.now() < end2) {
-            await sleep(150);
-            const cur2 = tab.url();
-            if (cur2 !== last2) {
-              last2 = cur2;
-              finalUrl = cur2;
-              await sleep(200);
-            }
-          }
-        }
+        const u = new URL(finalUrl);
+        if (u.hostname.endsWith("ceneo.pl"))
+          cleanedUrl = stripQueryParams(finalUrl);
       } catch {}
 
-      // ─────────────────────────────────────────────────────────
-      // ── CUSTOM LOGIC START (выполняется ПОСЛЕ редиректа):
-      const cleanedUrl = stripQueryParams(finalUrl); // убираем все query/hash
-      const price = await getFullDataMarket(tab, cleanedUrl); // пробуем вытащить цену парсером
+      const finalHost = (() => {
+        try {
+          return new URL(finalUrl).hostname;
+        } catch {
+          return "(invalid URL)";
+        }
+      })();
 
-      // Если нужен сторонний хук — вызываем после того, как мы уже получили цену
+      console.log(`[tab ${i + 1}] 🔗 finalUrl: ${finalUrl}`);
+      console.log(`[tab ${i + 1}] 🧹 cleanedUrl: ${cleanedUrl}`);
+      console.log(`[tab ${i + 1}] 🏷 host: ${finalHost}`);
+
+      // не запускаем парсер на страницах Ceneo или капче
+      if (
+        /(^|\.)ceneo\.pl$/i.test(finalHost) ||
+        /\/Captcha\/Add/i.test(finalUrl)
+      ) {
+        console.log(
+          `[tab ${
+            i + 1
+          }] ⛔ пропуск: домен ceneo.pl или капча, парсер не вызывается`
+        );
+        continue;
+      }
+
+      // ЯВНО логируем, что передаём в getFullDataMarket → finalUrl
+      console.log(
+        `[tab ${
+          i + 1
+        }] 🛠 getFullDataMarket(finalUrl= ${finalUrl}, host= ${finalHost})`
+      );
+
+      let data = null;
+      try {
+        data = await getFullDataMarket(tab, finalUrl);
+        console.log(`[tab ${i + 1}] ✅ данные получены от парсера`);
+      } catch (err) {
+        console.log(
+          `[tab ${
+            i + 1
+          }] ❌ ошибка парсера при вызове с finalUrl= ${finalUrl}:`,
+          err
+        );
+      }
+
       if (typeof onResolved === "function") {
         await onResolved({
           tab,
           original: originalUrl,
           finalUrl,
           cleanedUrl,
-          price,
+          data,
         });
       }
-      // ── CUSTOM LOGIC END
-      // ─────────────────────────────────────────────────────────
 
-      finalUrls.push(cleanedUrl);
-      results.push({ original: originalUrl, final: cleanedUrl });
+      if (data != null) {
+        dataOnly.push(data);
+        console.log(`[tab ${i + 1}] ➕ добавлено в результирующий массив`);
+      } else {
+        console.log(`[tab ${i + 1}] ⚠️ парсер вернул пусто/ошибку`);
+      }
     } catch (err) {
-      finalUrls.push(`Ошибка для ${originalUrl}: ${err.message}`);
-      results.push({ original: originalUrl, final: `Ошибка: ${err.message}` });
+      console.log(`[tab ${i + 1}] ❌ критическая ошибка шага:`, err);
     } finally {
       try {
-        if (tab) await tab.close();
+        if (tab) {
+          await tab.close();
+          console.log(`[tab ${i + 1}] 🔒 вкладка закрыта`);
+        }
       } catch {}
-      await sleep(1000); // пауза 1с между ссылками
+      await sleep(700);
     }
   }
 
-  return { finalUrls, results };
+  console.log(
+    `\n[getListUrls] 🏁 готово. Получено ${dataOnly.length} успешных результатов`
+  );
+  return dataOnly;
 }

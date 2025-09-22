@@ -14,7 +14,7 @@ import { oleole } from "../oleole/index.js";
 import { robotworld } from "../robotworld/index.js";
 import { senetic } from "../senetic/index.js";
 
-const map = {
+export const mapMarket = {
   "euro.com": eurocom,
   mediaexpert,
   komputronik,
@@ -36,18 +36,28 @@ const map = {
  *
  * @param {import('puppeteer').Page} page  Страница Puppeteer, на которой открыт товар
  * @param {string} url                      Финальный URL товара
- * @returns {Promise<{data: null | {price:number,image?:string|null,title?:string|null,delivery?:string|null}, error: null | {url:string,error:string}}>}
+ * @returns {Promise<{
+ *   data: null | {
+ *     price:number,
+ *     image?:string|null,
+ *     title?:string|null,
+ *     delivery?:string|null,
+ *     market:string,      // ⬅️ домен без TLD
+ *     url:string          // ⬅️ исходный URL
+ *   },
+ *   error: null | {url:string,error:string,market:string} // ⬅️ market тоже в ошибках
+ * }>}
  */
 export const getFullDataMarket = async (page, url) => {
   const domain = getDomainWithoutTLD(url);
-  const market = map[domain];
+  const market = mapMarket[domain];
 
   // Если парсер не найден
   if (!market) {
     console.log(`[parser] парсер для домена "${domain}" НЕ найден → ${url}`);
     return {
       data: null,
-      error: { url, error: "Парсера нет" },
+      error: { url, market: domain, error: "Парсера нет" }, // ⬅️
     };
   }
 
@@ -61,7 +71,7 @@ export const getFullDataMarket = async (page, url) => {
       console.log(`[parser] Не удалось извлечь цену (${domain})`);
       return {
         data: null,
-        error: { url, error: "Не удалось извлечь цену" },
+        error: { url, market: domain, error: "Не удалось извлечь цену" }, // ⬅️
       };
     }
 
@@ -88,7 +98,7 @@ export const getFullDataMarket = async (page, url) => {
     });
 
     return {
-      data: { price, image, title, delivery },
+      data: { price, image, title, delivery, market: domain, url }, // ⬅️
       error: null,
     };
   } catch (err) {
@@ -98,7 +108,7 @@ export const getFullDataMarket = async (page, url) => {
     );
     return {
       data: null,
-      error: { url, error: "Неизвестная ошибка" },
+      error: { url, market: domain, error: "Неизвестная ошибка" }, // ⬅️
     };
   }
 };

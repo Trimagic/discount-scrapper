@@ -5,6 +5,7 @@ import { serve } from "@hono/node-server";
 
 import { HoldInstanceQueue } from "./instance/crawlee/simple.js";
 import { getFullDataMarket } from "./services/utils/get-full-data.js";
+import { ceneo } from "./services/ceneo/index.js";
 
 const HOST = process.env.HOST ?? "0.0.0.0";
 const PORT = Number(process.env.PORT ?? 5000);
@@ -13,9 +14,9 @@ const PORT = Number(process.env.PORT ?? 5000);
 const hold = await HoldInstanceQueue.create({
   width: 1920,
   height: 900,
-  headless: "new",
+  headless: false,
   sessionBaseDir: "./session",
-  profileName: "parser3",
+  profileName: "parser2",
   waitOnError: true,
   navigationTimeoutSecs: 60,
 
@@ -23,7 +24,9 @@ const hold = await HoldInstanceQueue.create({
     // задержка 500мс без waitForTimeout (puppeteer-core)
     await page.evaluate(() => new Promise((r) => setTimeout(r, 500)));
     // твоя доменная логика
-    const data = await getFullDataMarket(page, url);
+    //const data = await getFullDataMarket(page, url);
+
+    const data = await ceneo.getListUrls(page);
     return data ?? null;
   },
 });

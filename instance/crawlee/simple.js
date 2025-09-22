@@ -3,9 +3,16 @@ import { PuppeteerCrawler, Configuration, RequestQueue } from "crawlee";
 import fs from "node:fs/promises";
 import path from "node:path";
 import crypto from "node:crypto";
+import { computeExecutablePath } from "@puppeteer/browsers";
 
 Configuration.set("systemInfoV2", true);
 Configuration.set("disableSystemInfo", true);
+
+const EXECUTABLE =
+  "C:\\Users\\aleks\\Desktop\\discount-scrapper\\chromium\\win64-1518483\\chrome-win\\chrome.exe";
+
+// Если ставил как `@latest`, можно оставить 'latest'.
+// Иначе подставь конкретный buildId из `npx @puppeteer/browsers ls --path ./chromium`
 
 /**
  * Долго-живущий инстанс:
@@ -92,6 +99,7 @@ export class HoldInstanceQueue {
 
       launchContext: {
         userDataDir: self.sessionDir,
+
         launchOptions: {
           defaultViewport: { width: self.width, height: self.height },
         },
@@ -140,9 +148,20 @@ export class HoldInstanceQueue {
             });
           }
 
+          // НОРМАЛИЗУЕМ ответ:
+          // - если extractor вернул уже { data, error }, отдадим как есть
+          // - иначе обернём "сырые" данные в { data: result, error: null }
+          const payload =
+            result &&
+            typeof result === "object" &&
+            ("data" in result || "error" in result)
+              ? result
+              : { data: result, error: null };
+
           const waiter = key ? self._pending.get(key) : null;
           if (waiter) {
-            waiter.resolve({ ok: true, url: request.url, result });
+            // Возвращаем ТОЛЬКО { data, error } — без ok/url/result
+            waiter.resolve(payload);
             self._pending.delete(key);
           }
         } catch (err) {
