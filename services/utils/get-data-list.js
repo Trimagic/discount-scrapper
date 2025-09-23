@@ -1,12 +1,14 @@
-import { ceneo } from "../ceneo";
+import { ceneo } from "../ceneo/index.js";
+import { getDomainWithoutTLD } from "./urls.js";
 
-const mapAggregate = {
+export const mapAggregate = {
   ceneo: ceneo,
 };
 
-export const getDataList = (page, url) => {
+export const getDataList = async (page, url) => {
   const domain = getDomainWithoutTLD(url);
   const market = mapAggregate[domain];
+  console.log({ market, domain });
 
   // Если парсер не найден
   if (!market) {
@@ -16,4 +18,8 @@ export const getDataList = (page, url) => {
       error: { url, error: "Парсера нет" },
     };
   }
+
+  const data = await market.getListUrls(page);
+
+  return data;
 };

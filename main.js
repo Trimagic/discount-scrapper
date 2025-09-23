@@ -4,8 +4,8 @@ import { cors } from "hono/cors";
 import { serve } from "@hono/node-server";
 
 import { HoldInstanceQueue } from "./instance/crawlee/simple.js";
-import { getFullDataMarket } from "./services/utils/get-full-data.js";
-import { ceneo } from "./services/ceneo/index.js";
+import { getDataList } from "./services/utils/get-data-list.js";
+import { mainParser } from "./services/utils/main-parser.js";
 
 const HOST = process.env.HOST ?? "0.0.0.0";
 const PORT = Number(process.env.PORT ?? 5000);
@@ -16,7 +16,7 @@ const hold = await HoldInstanceQueue.create({
   height: 900,
   headless: false,
   sessionBaseDir: "./session",
-  profileName: "parser2",
+  profileName: "parse",
   waitOnError: true,
   navigationTimeoutSecs: 60,
 
@@ -26,7 +26,9 @@ const hold = await HoldInstanceQueue.create({
     // твоя доменная логика
     //const data = await getFullDataMarket(page, url);
 
-    const data = await ceneo.getListUrls(page);
+    //const data = await ceneo.getListUrls(page);
+
+    const data = await mainParser(page, url);
     return data ?? null;
   },
 });

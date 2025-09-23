@@ -1,9 +1,0 @@
-{
-	"id": "2gWsIfbLgM28Wxn",
-	"json": "{\"id\":\"2gWsIfbLgM28Wxn\",\"url\":\"https://www.ceneo.pl/181610898;02514\",\"loadedUrl\":\"https://www.ceneo.pl/181610898;02514\",\"uniqueKey\":\"https://www.ceneo.pl/181610898;02514::1758501287133\",\"method\":\"GET\",\"noRetry\":false,\"retryCount\":0,\"errorMessages\":[],\"headers\":{},\"userData\":{\"jobKey\":\"5e91791d-fe23-4645-87b8-0e760446fd5f\",\"__crawlee\":{\"state\":4}},\"handledAt\":\"2025-09-22T00:35:17.959Z\"}",
-	"method": "GET",
-	"orderNo": null,
-	"retryCount": 0,
-	"uniqueKey": "https://www.ceneo.pl/181610898;02514::1758501287133",
-	"url": "https://www.ceneo.pl/181610898;02514"
-}

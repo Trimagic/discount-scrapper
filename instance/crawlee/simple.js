@@ -88,7 +88,7 @@ export class HoldInstanceQueue {
       headless: self.headless,
       maxRequestRetries: 0,
       navigationTimeoutSecs: self.navigationTimeoutSecs,
-      requestHandlerTimeoutSecs: Math.max(self.navigationTimeoutSecs + 30, 90),
+      requestHandlerTimeoutSecs: Math.max(self.navigationTimeoutSecs + 30, 180),
 
       requestQueue: self._queue,
 

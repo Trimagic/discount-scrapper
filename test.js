@@ -1,44 +1,99 @@
-import fs from "node:fs/promises";
-import path from "node:path";
-import { StealthBrowser } from "./instance/v1.js";
+/* eslint-disable no-console */
+import { Hono } from "hono";
+import { cors } from "hono/cors";
+import { serve } from "@hono/node-server";
 
-(async () => {
-  const sb = await StealthBrowser.launch({
-    headless: "new",
-    userDataDir: "./.profile-demo",
-    locale: "pl-PL,pl;q=0.9,en;q=0.8",
-  });
+import { HoldInstanceQueue } from "./instance/crawlee/simple.js";
+import { getFullDataMarket } from "./services/utils/get-full-data.js";
+import { ceneo } from "./services/ceneo/index.js";
 
-  const page = await sb.newPage();
-  await page.goto(
-    "https://www.euro.com.pl/suszarki/haier-x11-hd90-a3q397u1-s-i-refresh-pro-66cm-9kg.bhtml",
-    { waitUntil: "domcontentloaded" }
-  );
+const HOST = process.env.HOST ?? "0.0.0.0";
+const PORT = Number(process.env.PORT ?? 5000);
 
-  // Создаём папку для скринов, если её нет
-  const shotsDir = path.resolve("./screenshots");
-  await fs.mkdir(shotsDir, { recursive: true });
+// Единый долго-живущий инстанс
+const hold = await HoldInstanceQueue.create({
+  width: 1920,
+  height: 900,
+  headless: false,
+  sessionBaseDir: "./session",
+  profileName: "parser3",
+  waitOnError: true,
+  navigationTimeoutSecs: 60,
 
-  async function getPrice() {
-    try {
-      const price = await page.$eval(".price-template__large--total", (el) =>
-        el.textContent.trim()
-      );
-      console.log(`[${new Date().toLocaleTimeString()}] Цена:`, price);
-    } catch (e) {
-      console.log(
-        `[${new Date().toLocaleTimeString()}] Не удалось найти цену:`,
-        e.message
-      );
-      const file = path.join(shotsDir, `price-error-${Date.now()}.png`);
-      await page.screenshot({ path: file, fullPage: true });
-      console.log("Скриншот сохранён:", file);
+  extractor: async (page, url) => {
+    // задержка 500мс без waitForTimeout (puppeteer-core)
+    await page.evaluate(() => new Promise((r) => setTimeout(r, 500)));
+    // твоя доменная логика
+    const data = await getFullDataMarket(page, url);
+
+    //const data = await ceneo.getListUrls(page);
+    return data ?? null;
+  },
+});
+
+const app = new Hono();
+// CORS до всех роутов
+app.use(
+  "*",
+  cors({
+    // Разрешить любой Origin (и работать с null origin — например из file:// или расширений)
+    origin: (origin) => origin ?? "*",
+    allowMethods: ["GET", "POST", "OPTIONS"],
+    allowHeaders: ["*"], // или перечисли явно: ["content-type", "authorization", ...]
+    exposeHeaders: ["*"],
+    maxAge: 86400,
+    credentials: false, // если нужно с куками/Authorization и credentials — смотри примечание ниже
+  })
+);
+
+app.get("/", (c) => c.json({ ok: true, msg: "Hold crawler alive" }));
+
+app.post("/parse", async (c) => {
+  try {
+    const body = await c.req.json();
+    const url = String(body?.url || "");
+    if (!isValidHttpUrl(url)) {
+      return c.json({ ok: false, error: "Invalid URL" }, 400);
     }
+
+    // Если не пришёл uniqueKey — генерим, чтобы избежать дедупликации
+    const uniqueKey = body?.uniqueKey ?? `${url}::${Date.now()}`;
+    const TIMEOUT_MS = Number(body?.timeoutMs ?? 90_000);
+
+    const result = await withTimeout(
+      hold.enqueue(url, { uniqueKey }),
+      TIMEOUT_MS,
+      "Timed out waiting for parse result"
+    );
+
+    return c.json(result);
+  } catch (e) {
+    return c.json({ ok: false, error: String(e?.message || e) }, 500);
   }
+});
 
-  // Первый вызов сразу
-  await getPrice();
+serve({ fetch: app.fetch, hostname: HOST, port: PORT }, () => {
+  console.log(`🚀 Server listening on http://${HOST}:${PORT}`);
+});
 
-  // Каждые 30 секунд
-  setInterval(getPrice, 5_000);
-})();
+// helpers
+function isValidHttpUrl(value) {
+  try {
+    const u = new URL(value);
+    return u.protocol === "http:" || u.protocol === "https:";
+  } catch {
+    return false;
+  }
+}
+
+async function withTimeout(promise, ms, msg = "Timed out") {
+  let to;
+  try {
+    const kill = new Promise(
+      (_, rej) => (to = setTimeout(() => rej(new Error(msg)), ms))
+    );
+    return await Promise.race([promise, kill]);
+  } finally {
+    clearTimeout(to);
+  }
+}
