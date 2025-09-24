@@ -3,22 +3,15 @@ import { PuppeteerCrawler, Configuration, RequestQueue } from "crawlee";
 import fs from "node:fs/promises";
 import path from "node:path";
 import crypto from "node:crypto";
-import { computeExecutablePath } from "@puppeteer/browsers";
 
 Configuration.set("systemInfoV2", true);
 Configuration.set("disableSystemInfo", true);
-
-const EXECUTABLE =
-  "C:\\Users\\aleks\\Desktop\\discount-scrapper\\chromium\\win64-1518483\\chrome-win\\chrome.exe";
-
-// Если ставил как `@latest`, можно оставить 'latest'.
-// Иначе подставь конкретный buildId из `npx @puppeteer/browsers ls --path ./chromium`
 
 /**
  * Долго-живущий инстанс:
  * - единый PuppeteerCrawler
  * - единый RequestQueue
- * - enqueue(url) -> Promise<result>, который резолвится из requestHandler
+ * - enqueue(url, { ...userData }) -> Promise<result>, который резолвится из requestHandler
  */
 export class HoldInstanceQueue {
   constructor(opts = {}) {
@@ -38,7 +31,7 @@ export class HoldInstanceQueue {
     this.profileName = opts.profileName ?? "default";
     this.sessionDir = opts.sessionDir ?? undefined;
 
-    // общий обработчик (например, твой getFullDataMarket)
+    // общий обработчик (например, твой getFullDataMarket/getPricesForUrls)
     this.extractor =
       typeof opts.extractor === "function" ? opts.extractor : null;
 
@@ -54,14 +47,17 @@ export class HoldInstanceQueue {
   }
 
   static async create(opts = {}) {
+    console.log("[HoldInstanceQueue] create() called");
     const inst = new HoldInstanceQueue(opts);
     await inst.#ensureSessionDir();
     await inst.#ensureQueue();
     await inst.#ensureCrawler();
+    console.log("[HoldInstanceQueue] create() ready");
     return inst;
   }
 
   async #ensureSessionDir() {
+    console.log("[HoldInstanceQueue] ensureSessionDir");
     if (!this.sessionDir) {
       const name = this.profileName || "default";
       this.sessionDir = path.resolve(this.sessionBaseDir, name);
@@ -74,6 +70,7 @@ export class HoldInstanceQueue {
 
   async #ensureQueue() {
     if (!this._queue) {
+      console.log("[HoldInstanceQueue] Opening RequestQueue…");
       this._queue = await RequestQueue.open(`rq-${this.profileName}`);
       console.log(`🗂️ RequestQueue ready: rq-${this.profileName}`);
     }
@@ -81,6 +78,7 @@ export class HoldInstanceQueue {
 
   async #ensureCrawler() {
     if (this._crawler) return;
+    console.log("[HoldInstanceQueue] Creating PuppeteerCrawler…");
 
     const self = this;
 
@@ -99,14 +97,18 @@ export class HoldInstanceQueue {
 
       launchContext: {
         userDataDir: self.sessionDir,
-
         launchOptions: {
           defaultViewport: { width: self.width, height: self.height },
+          headless: self.headless,
         },
       },
 
       preNavigationHooks: [
         async (_ctx, gotoOptions) => {
+          console.log(
+            "[preNavigationHooks] set waitUntil=networkidle2, timeout=%dms",
+            self.navigationTimeoutSecs * 1000
+          );
           gotoOptions.waitUntil = "networkidle2";
           gotoOptions.timeout = self.navigationTimeoutSecs * 1000;
         },
@@ -115,6 +117,16 @@ export class HoldInstanceQueue {
       async requestHandler(ctx) {
         const { page, request } = ctx;
         const key = request.userData?.jobKey;
+        const items = request.userData?.items;
+        const mode = request.userData?.mode;
+
+        console.log("[requestHandler] fired →", {
+          url: request.url,
+          key,
+          mode,
+          hasItems: Array.isArray(items),
+          itemsCount: Array.isArray(items) ? items.length : 0,
+        });
 
         try {
           await page.waitForSelector("body", { timeout: 30_000 });
@@ -130,27 +142,40 @@ export class HoldInstanceQueue {
 
           const stableEval = createStableEval(page);
 
+          // userData, которые придут в extractor
+          const userDataForExtractor = {
+            ...request.userData,
+            ctx,
+            stableEval,
+          };
+
           // пользовательский парсер
           let result = null;
           if (typeof self.extractor === "function") {
-            result = await self.extractor(page, request.url, {
-              ctx,
-              stableEval,
+            console.log("[requestHandler] calling extractor with userData:", {
+              ...userDataForExtractor,
+              // не спамим лог jobKey в явном виде
+              jobKey: userDataForExtractor.jobKey ? "[present]" : undefined,
             });
+            result = await self.extractor(
+              page,
+              request.url,
+              userDataForExtractor
+            );
           } else {
-            // дефолт
+            console.log(
+              "[requestHandler] no extractor provided, using default evaluate()"
+            );
             result = await stableEval(() => {
               const h1 = document.querySelector("h1");
               return {
-                title: h1 ? h1.textContent.trim() : null,
+                title: h1 ? h1.textContent.trim() : document.title || null,
                 url: location.href,
               };
             });
           }
 
-          // НОРМАЛИЗУЕМ ответ:
-          // - если extractor вернул уже { data, error }, отдадим как есть
-          // - иначе обернём "сырые" данные в { data: result, error: null }
+          // нормализуем результат
           const payload =
             result &&
             typeof result === "object" &&
@@ -160,15 +185,18 @@ export class HoldInstanceQueue {
 
           const waiter = key ? self._pending.get(key) : null;
           if (waiter) {
-            // Возвращаем ТОЛЬКО { data, error } — без ok/url/result
+            console.log("[requestHandler] resolving job:", key);
             waiter.resolve(payload);
             self._pending.delete(key);
+          } else {
+            console.warn("[requestHandler] no pending resolver for key:", key);
           }
         } catch (err) {
-          console.error("❌ Handler error:", err?.message || err);
+          console.error("[requestHandler] ❌ Error:", err?.message || err);
           const waiter = key ? self._pending.get(key) : null;
 
           if (waiter) {
+            console.log("[requestHandler] rejecting job:", key);
             waiter.reject(err);
             self._pending.delete(key);
           }
@@ -186,18 +214,19 @@ export class HoldInstanceQueue {
 
       async failedRequestHandler({ request, error }) {
         const key = request.userData?.jobKey;
-        console.error(
-          "❌ failedRequestHandler:",
-          request.url,
-          "-",
-          error?.message || error
-        );
-        const waiter = key ? this._pending.get(key) : null;
+        console.error("[failedRequestHandler]", {
+          url: request.url,
+          key,
+          error: error?.message || error,
+        });
+
+        const waiter = key ? self._pending.get(key) : null;
         if (waiter) {
           waiter.reject(error);
-          this._pending.delete(key);
+          self._pending.delete(key);
         }
-        if (this.waitOnError) {
+
+        if (self.waitOnError) {
           console.log(
             "⏸️ waitOnError=true → держу окно после nav-ошибки. Ctrl+C чтобы выйти."
           );
@@ -205,17 +234,24 @@ export class HoldInstanceQueue {
         }
       },
     });
+
+    console.log("[HoldInstanceQueue] PuppeteerCrawler created");
   }
 
   async #ensureRun() {
-    if (this._isRunning) return this._runPromise;
+    if (this._isRunning) {
+      console.log("[HoldInstanceQueue] run() already active");
+      return this._runPromise;
+    }
 
+    console.log("[HoldInstanceQueue] starting crawler.run()");
     this._isRunning = true;
     this._runPromise = (async () => {
       try {
-        console.log("▶️ crawler.run() started");
         await this._crawler.run(); // завершится, когда очередь опустеет
-        console.log("⏹️ crawler.run() finished (queue empty)");
+        console.log("[HoldInstanceQueue] crawler.run() finished (queue empty)");
+      } catch (e) {
+        console.error("[HoldInstanceQueue] run() error:", e?.message || e);
       } finally {
         this._isRunning = false;
       }
@@ -226,47 +262,61 @@ export class HoldInstanceQueue {
 
   /**
    * Поставить URL в очередь и дождаться результата парсинга.
+   * opts может содержать произвольные поля (mode, items, ...), они попадут в request.userData
    * @param {string} url
-   * @param {{ uniqueKey?: string, userData?: any }} [opts]
+   * @param {{ uniqueKey?: string, [k:string]: any }} [opts]
    */
-  async enqueue(url, { uniqueKey, userData } = {}) {
+  async enqueue(url, opts = {}) {
+    console.log("[enqueue] called", { url });
     if (!url || typeof url !== "string") {
       throw new Error("enqueue(url): нужен валидный URL (string).");
     }
 
+    const { uniqueKey, ...rest } = opts; // ← соберём всё (mode, items, etc.) в rest
     const jobKey = crypto.randomUUID();
     const promise = new Promise((resolve, reject) => {
       this._pending.set(jobKey, { resolve, reject });
     });
 
-    // Генерим уникальный ключ, если не передан явно
     const effectiveKey = uniqueKey || `${url}::${Date.now()}`;
+    console.log("[enqueue] addRequest", {
+      effectiveKey,
+      jobKey,
+      userData: rest,
+    });
+
     const addRes = await this._queue.addRequest(
       {
         url,
         uniqueKey: effectiveKey,
-        userData: { ...(userData || {}), jobKey },
+        userData: { ...rest, jobKey }, // ← теперь mode/items поедут сюда
       },
       { forefront: true }
     );
 
-    // Если задача уже была/есть — форсируем повтор с новым ключом
     if (addRes?.wasAlreadyHandled || addRes?.wasAlreadyPresent) {
+      // форсируем повтор с новым ключом
       const forceKey = `${url}::force::${Date.now()}`;
+      console.log("[enqueue] duplicate detected → addRequest(force)", {
+        forceKey,
+        jobKey,
+      });
+
       const addRes2 = await this._queue.addRequest(
         {
           url,
           uniqueKey: forceKey,
-          userData: { ...(userData || {}), jobKey },
+          userData: { ...rest, jobKey },
         },
         { forefront: true }
       );
 
       if (addRes2?.wasAlreadyHandled) {
+        console.warn("[enqueue] wasAlreadyHandled on force request");
         const waiter = this._pending.get(jobKey);
         if (waiter) {
           waiter.reject(
-            new Error("Request wasAlreadyHandled; use uniqueKey to re-run.")
+            new Error("Request wasAlreadyHandled; provide uniqueKey to re-run.")
           );
           this._pending.delete(jobKey);
         }
@@ -276,7 +326,7 @@ export class HoldInstanceQueue {
 
     // гарантируем запуск краулера
     this.#ensureRun().catch((e) => {
-      console.error("ensureRun() error:", e);
+      console.error("[enqueue] ensureRun error", e);
       const waiter = this._pending.get(jobKey);
       if (waiter) {
         waiter.reject(e);
@@ -297,6 +347,7 @@ export class HoldInstanceQueue {
   }
 }
 
+/** Надёжный evaluate: повторяет после «Execution context was destroyed» */
 function createStableEval(page) {
   return async (fn, ...args) => {
     try {
@@ -304,6 +355,9 @@ function createStableEval(page) {
     } catch (e) {
       const msg = String(e?.message || e);
       if (msg.includes("Execution context was destroyed")) {
+        console.warn(
+          "[stableEval] context destroyed → retrying after DOM ready"
+        );
         await page.waitForSelector("body", { timeout: 30_000 });
         await page.waitForFunction(
           () => ["interactive", "complete"].includes(document.readyState),

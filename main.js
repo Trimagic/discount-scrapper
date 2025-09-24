@@ -4,8 +4,8 @@ import { cors } from "hono/cors";
 import { serve } from "@hono/node-server";
 
 import { HoldInstanceQueue } from "./instance/crawlee/simple.js";
-import { getDataList } from "./services/utils/get-data-list.js";
 import { mainParser } from "./services/utils/main-parser.js";
+import { getPricesForUrls } from "./services/utils/get-prices.js";
 
 const HOST = process.env.HOST ?? "0.0.0.0";
 const PORT = Number(process.env.PORT ?? 5000);
@@ -16,20 +16,29 @@ const hold = await HoldInstanceQueue.create({
   height: 900,
   headless: false,
   sessionBaseDir: "./session",
-  profileName: "parse",
+  profileName: "current",
   waitOnError: true,
   navigationTimeoutSecs: 60,
 
-  extractor: async (page, url) => {
-    // задержка 500мс без waitForTimeout (puppeteer-core)
+  /**
+   * extractor(page, url, opts)
+   * opts: { mode?: "full" | "price", items?: Array<{id:string,url:string}> }
+   */
+  extractor: async (page, url, { mode = "full", items } = {}) => {
+    // небольшая задержка для прогрузки страницы
+    console.log({ items });
     await page.evaluate(() => new Promise((r) => setTimeout(r, 500)));
-    // твоя доменная логика
-    //const data = await getFullDataMarket(page, url);
 
-    //const data = await ceneo.getListUrls(page);
+    if (mode === "price") {
+      // Если пришёл массив — обрабатываем батчем.
+      if (Array.isArray(items) && items.length) {
+        return await getPricesForUrls(page, items);
+      }
+      // Иначе — одиночный URL
+    }
 
-    const data = await mainParser(page, url);
-    return data ?? null;
+    // 🔎 полный парсинг (по умолчанию)
+    return await mainParser(page, url);
   },
 });
 
@@ -69,6 +78,49 @@ app.post("/parse", async (c) => {
     );
 
     return c.json(result);
+  } catch (e) {
+    return c.json({ ok: false, error: String(e?.message || e) }, 500);
+  }
+});
+
+app.post("/parse-urls", async (c) => {
+  try {
+    const body = await c.req.json();
+    const urls = Array.isArray(body) ? body : [];
+
+    if (!urls.length) {
+      return c.json({ ok: false, error: "No URLs provided" }, 400);
+    }
+
+    const TIMEOUT_MS = Number(body?.timeoutMs ?? 90_000);
+
+    // Один уникальный ключ на весь батч
+    const uniqueKey = `batch::${Date.now()}::${urls.length}`;
+
+    // Единый запуск: передаём items внутрь extractor
+    const results = await withTimeout(
+      hold.enqueue("https://example.com/", {
+        uniqueKey: `batch::${Date.now()}::${urls.length}`,
+        mode: "price",
+        items: urls,
+      }),
+      TIMEOUT_MS,
+      "Timed out waiting for parse result"
+    );
+
+    const data = await fetch(
+      "http://localhost:8787/helper/report-market-price",
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(results.data),
+      }
+    ).then((res) => console.log("SUCCESS"));
+
+    // extractor вернёт массив [{ id, data, error }, ...]
+    return c.json({ ok: true, results });
   } catch (e) {
     return c.json({ ok: false, error: String(e?.message || e) }, 500);
   }

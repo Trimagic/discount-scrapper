@@ -1,0 +1,9 @@
+{
+	"id": "vkb6b5w7C6ETgR1",
+	"json": "{\"id\":\"vkb6b5w7C6ETgR1\",\"url\":\"https://example.com/\",\"loadedUrl\":\"https://example.com/\",\"uniqueKey\":\"batch::1758670606911::5\",\"method\":\"GET\",\"noRetry\":false,\"retryCount\":0,\"errorMessages\":[],\"headers\":{},\"userData\":{\"mode\":\"price\",\"items\":[{\"id\":\"411db057-5b7e-412c-b408-e037c216c916\",\"url\":\"https://allegro.pl/oferta/robot-sprzatajacy-roborock-qrevo-5ae-bialy-17503420820?ceneo_cid=c7553d09-4883-9508-96de-f2ada7ddbddc&utm_feed=3dca5096-1f0f-4ca6-9f37-f55ca2fec4f7\"},{\"id\":\"f059e49f-41a2-44e4-8296-2a200e0e2c87\",\"url\":\"https://www.mediaexpert.pl/agd-male/sprzatanie/odkurzacze-automatyczne/robot-sprzatajacy-roborock-qrevo-5ae-bialy?ceneo_cid=ced7b0d0-8334-2f6c-9bb0-b9ca1d99bbae&ceneo_spo=true\"},{\"id\":\"5caec372-fcf3-4c68-a427-062709eaa42a\",\"url\":\"https://www.neonet.pl/odkurzacze/roborock-qrevo-5ae-bialy.html?ceneo_cid=5e16d0b4-4545-4e1d-07c7-54e273ddf0b1\"},{\"id\":\"1c983238-7da5-45e8-a893-c8691d90ab45\",\"url\":\"https://www.komputronik.pl/product/965873/robot-sprzatajacy-roborock-qrevo-5ae-bialy.html?ceneo_cid=7a2530dd-5893-d1dd-692d-0156c6018c72\"},{\"id\":\"b98ad35b-8293-4357-881a-c130216d32fd\",\"url\":\"https://www.euro.com.pl/odkurzacze-automatyczne/roborock-qrevo-5ae-funkcja-mopowania-stacja-oczyszczajaca-tworzenie-mapy-pomieszczenia-64db-bialy.bhtml?ceneo_cid=83fe1af6-ab3f-a8fc-fe0b-05325ff69a89&cr=0&from=ceneo&p=1999.00&t=20250923-1454\"}],\"jobKey\":\"594bd622-3df2-4520-abb6-3b5913a50109\",\"__crawlee\":{\"state\":4}},\"handledAt\":\"2025-09-23T23:37:10.472Z\"}",
+	"method": "GET",
+	"orderNo": null,
+	"retryCount": 0,
+	"uniqueKey": "batch::1758670606911::5",
+	"url": "https://example.com/"
+}
